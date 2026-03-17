@@ -1,0 +1,524 @@
+= asciidoc-plantuml-readme-plugin
+:toc:
+:toclevels: 3
+:icons: font
+:source-highlighter: highlight.js
+
+Gradle plugin published under the Apache 2.0 license on the link:https://plugins.gradle.org[Gradle Plugin Portal].
+
+It automatically generates GitHub-compatible `README.adoc` files from `README_plantuml.adoc` source files containing native PlantUML blocks.
+
+== 1. Problem solved
+
+GitHub does not natively render PlantUML syntax in AsciiDoc files.
+A `[plantuml]` block displayed as-is on github.com is not rendered as an image.
+
+This plugin automates the transformation via GitHub Actions:
+
+[plantuml, problem-solution, png]
+----
+@startuml
+skinparam componentStyle rectangle
+
+package "What you write" {
+  [README_plantuml.adoc\n(native plantuml blocks)] as src #LightGreen
+}
+
+package "What GitHub displays" {
+  [README.adoc\n(image::...png references)] as out #LightBlue
+}
+
+package "What the visitor sees" {
+  [Diagrams rendered\nin the browser] as web #LightYellow
+}
+
+src --> out : plugin generates\n(GitHub Actions)
+out --> web : GitHub renders\nnatively
+@enduml
+----
+
+== 2. Philosophy: single source of truth
+
+`README_plantuml.adoc` is the **only file you edit**.
+`README.adoc` is a generated artifact — never edited by hand.
+
+[plantuml, source-of-truth, png]
+----
+@startuml
+skinparam defaultTextAlignment center
+
+rectangle "You edit" #LightGreen {
+  file "README_plantuml.adoc" as src
+  file "README_plantuml_fr.adoc" as srcFr
+}
+
+rectangle "CI generates" #LightBlue {
+  file "README.adoc" as out
+  file "README_fr.adoc" as outFr
+  folder ".github/workflows/readmes/images/en/" as imgEn
+  folder ".github/workflows/readmes/images/fr/" as imgFr
+}
+
+src --> out
+src --> imgEn
+srcFr --> outFr
+srcFr --> imgFr
+@enduml
+----
+
+=== Multilingual naming convention
+
+[cols="1,1,1", options="header"]
+|===
+| Source file (you edit)
+| Detected language
+| Generated file (CI)
+
+| `README_plantuml.adoc`
+| `en` (configurable default)
+| `README.adoc`
+
+| `README_plantuml_fr.adoc`
+| `fr`
+| `README_fr.adoc`
+
+| `README_plantuml_de.adoc`
+| `de`
+| `README_de.adoc`
+|===
+
+== 3. How it works
+
+=== Overview
+
+[plantuml, overview-sequence, png]
+----
+@startuml
+actor Developer
+participant "GitHub" as GH
+participant "GitHub Actions" as CI
+participant "processReadme\n(Gradle Task)" as proc
+participant "commitGeneratedReadme\n(Gradle Task)" as commit
+participant "JGit" as jgit
+
+Developer -> GH : git push README_plantuml*.adoc
+GH -> CI : triggers workflow
+CI -> proc : ./gradlew commitGeneratedReadme
+proc -> proc : detects [plantuml,name,...] blocks
+proc -> proc : generates .github/workflows/readmes/\nimages/{lang}/name.png
+proc -> proc : rewrites README.adoc\nwith image::...png[]
+proc -> commit : dependsOn resolved
+commit -> jgit : git add + commit + push
+jgit -> GH : README.adoc + images committed
+GH --> Developer : README visible ✓
+@enduml
+----
+
+=== Activity diagram
+
+[plantuml, activity, png]
+----
+@startuml
+start
+
+:Read readme-plantuml.yml\n(injected from CI secret);
+
+:Scan README_plantuml*.adoc\nin sourceDir;
+
+if (Files found?) then (no)
+  :Warning — no source file;
+  stop
+else (yes)
+  :Detect language\nfrom _xx suffix;
+endif
+
+repeat
+  :Extract [plantuml, name, ...] blocks;
+
+  if (Blocks found?) then (yes)
+    repeat
+      :Generate PNG\nbuild/img/{lang}/name.png;
+      :Copy to\n.github/workflows/readmes/images/{lang}/;
+      :Replace block with\nimage::.github/.../name.png[name];
+    repeat while (more blocks?)
+  endif
+
+  :Write README{_lang}.adoc;
+repeat while (more source files?)
+
+:git add README*.adoc\n+ .github/workflows/readmes/images/;
+:git commit + push\nvia JGit (no git binary required);
+
+stop
+@enduml
+----
+
+== 4. Internal architecture
+
+=== Components
+
+[plantuml, components, png]
+----
+@startuml
+skinparam componentStyle rectangle
+
+package "asciidoc-plantuml-readme-plugin" {
+
+  package "config" {
+    [ReadmePlantUmlConfig] as cfg
+    [SourceConfig] as scfg
+    [OutputConfig] as ocfg
+    [GitConfig] as gcfg
+  }
+
+  package "model" {
+    [AdocSourceFile] as adocModel
+  }
+
+  package "tasks" {
+    [ProcessReadmeTask] as proc
+    [CommitGeneratedReadmeTask] as commit
+  }
+
+  [ReadmePlantUmlPlugin] as plugin
+
+}
+
+package "External dependencies" {
+  [PlantUML Engine] as puml
+  [JGit] as jgit
+  [Jackson YAML\n(Jakarta)] as jackson
+}
+
+plugin --> proc
+plugin --> commit
+plugin --> cfg
+
+cfg --> jackson
+proc --> adocModel
+proc --> puml
+commit --> jgit
+@enduml
+----
+
+=== Class diagram
+
+[plantuml, class-diagram, png]
+----
+@startuml
+skinparam classAttributeIconSize 0
+
+class ReadmePlantUmlPlugin {
+  +apply(project: Project)
+}
+
+class ReadmePlantUmlConfig {
+  +source: SourceConfig
+  +output: OutputConfig
+  +git: GitConfig
+  {static} +load(projectDir: File): ReadmePlantUmlConfig
+}
+
+class SourceConfig {
+  +dir: String = "."
+  +defaultLang: String = "en"
+}
+
+class OutputConfig {
+  +imgDir: String = ".github/workflows/readmes/images"
+}
+
+class GitConfig {
+  +userName: String
+  +userEmail: String
+  +commitMessage: String
+  +token: String
+  +watchedBranches: List<String>
+  +resolvedToken(): String
+}
+
+class AdocSourceFile {
+  +file: File
+  +baseName: String
+  +lang: String?
+  +effectiveLang(default: String): String
+  +generatedFileName(): String
+  +generatedFile(): File
+  {static} +isSourceOfTruth(file: File): Boolean
+  {static} +scanDir(dir: File): List<AdocSourceFile>
+}
+
+abstract class ProcessReadmeTask {
+  +sourceDir: DirectoryProperty
+  +imgDir: DirectoryProperty
+  +buildImgDir: DirectoryProperty
+  +defaultLang: Property<String>
+  +process()
+}
+
+abstract class CommitGeneratedReadmeTask {
+  +repoDir: DirectoryProperty
+  +gitUserName: Property<String>
+  +gitUserEmail: Property<String>
+  +commitMessage: Property<String>
+  +gitToken: Property<String>
+  +commitAndPush()
+}
+
+ReadmePlantUmlPlugin --> ReadmePlantUmlConfig : loads
+ReadmePlantUmlPlugin --> ProcessReadmeTask : registers
+ReadmePlantUmlPlugin --> CommitGeneratedReadmeTask : registers
+
+ReadmePlantUmlConfig *-- SourceConfig
+ReadmePlantUmlConfig *-- OutputConfig
+ReadmePlantUmlConfig *-- GitConfig
+
+ProcessReadmeTask --> AdocSourceFile : scans + processes
+CommitGeneratedReadmeTask --> ProcessReadmeTask : dependsOn
+@enduml
+----
+
+=== Hexagonal architecture
+
+[plantuml, hexagonal, png]
+----
+@startuml
+
+package "Driving Adapters" {
+  [ProcessReadmeTask] as proc
+  [CommitGeneratedReadmeTask] as commit
+}
+
+package "Application Core" {
+  [ReadmePlantUmlPlugin] as core
+  [ReadmePlantUmlConfig] as cfg
+}
+
+package "Domain" {
+  [AdocSourceFile] as domain
+}
+
+package "Ports" {
+  interface FilePort
+  interface DiagramPort
+  interface GitPort
+}
+
+package "Driven Adapters" {
+  [FileSystem] as fs
+  [PlantUML Engine] as puml
+  [JGit] as jgit
+}
+
+proc --> core
+commit --> core
+core --> cfg
+core --> domain
+
+core --> FilePort
+core --> DiagramPort
+core --> GitPort
+
+FilePort <.. fs
+DiagramPort <.. puml
+GitPort <.. jgit
+@enduml
+----
+
+== 5. Installation
+
+=== Project structure
+
+[source,text]
+----
+my-project/                               <1>
+├── settings.gradle.kts
+├── build.gradle.kts
+├── readme-plantuml.yml                   <2>
+├── README_plantuml.adoc                  <3>
+├── README_plantuml_fr.adoc               <3>
+│
+└── plugin/                               <4>
+    ├── settings.gradle.kts
+    ├── build.gradle.kts
+    └── src/main/kotlin/...
+----
+<1> Consumer project — root
+<2> Plugin configuration (injected from CI secret)
+<3> Sources of truth — the only files you edit
+<4> Plugin as local composite build
+
+=== `settings.gradle.kts` (consumer)
+
+[source,kotlin]
+----
+rootProject.name = "my-project"
+
+pluginManagement {
+    includeBuild("plugin")    // <1>
+}
+----
+<1> Local resolution — no publication required during development
+
+=== `build.gradle.kts` (consumer)
+
+[source,kotlin]
+----
+plugins {
+    id("io.github.ton-org.asciidoc-plantuml-readme")  // <1>
+}
+----
+<1> No version required in local composite build
+
+=== Generated file structure
+
+[source,text]
+----
+my-project/
+├── README.adoc                                        <1>
+├── README_fr.adoc                                     <1>
+└── .github/
+    └── workflows/
+        ├── readme_plantuml.yml                        <2>
+        └── readmes/
+            └── images/
+                ├── en/
+                │   ├── architecture.png               <1>
+                │   └── sequence.png                   <1>
+                └── fr/
+                    ├── architecture.png               <1>
+                    └── sequence.png                   <1>
+----
+<1> Artifacts generated by CI — never edit these
+<2> GitHub Actions workflow
+
+== 6. Configuration
+
+Configuration is externalized in `readme-plantuml.yml`.
+This file **never** contains the token in plain text in the repository.
+Its full content (token included) is stored in the GitHub secret `README_GRADLE_PLUGIN`.
+
+=== `readme-plantuml.yml` template
+
+[source,yaml]
+----
+source:
+  dir: "."                    # <1>
+  defaultLang: "en"           # <2>
+
+output:
+  imgDir: ".github/workflows/readmes/images"  # <3>
+
+git:
+  userName: "github-actions[bot]"
+  userEmail: "github-actions[bot]@users.noreply.github.com"
+  commitMessage: "chore: generate readme [skip ci]"
+  token: "<YOUR_GITHUB_PAT>"  # <4>
+  watchedBranches:
+    - "main"
+    - "master"
+----
+<1> Directory containing the `README_plantuml*.adoc` files
+<2> Default language when no `_xx` suffix is present in the filename
+<3> Generated images folder — versioned in git
+<4> Replaced by the real PAT only inside the GitHub secret
+
+=== Secret injection in CI
+
+[source,yaml]
+----
+- name: Inject plugin config
+  run: echo "${{ secrets.README_GRADLE_PLUGIN }}" > readme-plantuml.yml
+
+- name: Generate README and commit via JGit
+  run: ./gradlew -q -s commitGeneratedReadme --no-daemon
+----
+
+== 7. Available Gradle tasks
+
+[cols="1,2,1", options="header"]
+|===
+| Task
+| Description
+| Usage
+
+| `processReadme`
+| Generates PNG files and rewrites `README*.adoc`
+| Local or CI
+
+| `commitGeneratedReadme`
+| Chains `processReadme` then commits + pushes via JGit
+| CI only
+|===
+
+== 8. Full GitHub Actions workflow
+
+[source,yaml]
+----
+name: Generate README from PlantUML sources
+
+on:
+  push:
+    branches:
+      - main
+      - master
+    paths:
+      - "README_plantuml*.adoc"
+
+  workflow_dispatch:
+
+jobs:
+  generate-readme:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: gradle
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      - name: Inject plugin config
+        run: echo "${{ secrets.README_GRADLE_PLUGIN }}" > readme-plantuml.yml
+
+      - name: Generate README and commit via JGit
+        run: ./gradlew -q -s commitGeneratedReadme --no-daemon
+----
+
+== 9. Dependencies
+
+[cols="2,1,2", options="header"]
+|===
+| Dependency
+| Version
+| Role
+
+| `net.sourceforge.plantuml:plantuml`
+| `1.2024.3`
+| PNG generation from PlantUML blocks
+
+| `org.eclipse.jgit:org.eclipse.jgit`
+| `6.9.0`
+| Git operations without a system git binary
+
+| `tools.jackson.dataformat:jackson-dataformat-yaml`
+| `3.0.4`
+| Parsing of `readme-plantuml.yml`
+
+| `tools.jackson.module:jackson-module-kotlin`
+| `3.0.4`
+| YAML → Kotlin data class mapping (Jakarta)
+|===
+
+== 10. License
+
+Distributed under the link:https://www.apache.org/licenses/LICENSE-2.0[Apache 2.0] license.
