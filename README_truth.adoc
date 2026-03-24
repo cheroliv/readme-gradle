@@ -437,7 +437,7 @@ git:
 [source,yaml]
 ----
 - name: Inject plugin config
-  run: echo "${{ secrets.README_GRADLE_PLUGIN }}" > readme-plantuml.yml
+  run: echo "${{ secrets.README_GRADLE_PLUGIN }}" > readme-truth.yml
 
 - name: Generate README and commit via JGit
   run: ./gradlew -q -s commitGeneratedReadme --no-daemon
@@ -497,7 +497,7 @@ jobs:
         run: chmod +x gradlew
 
       - name: Inject plugin config
-        run: echo "${{ secrets.README_GRADLE_PLUGIN }}" > readme-plantuml.yml
+        run: echo "${{ secrets.README_GRADLE_PLUGIN }}" > readme-truth.yml
 
       - name: Generate README and commit via JGit
         run: ./gradlew -q -s commitGeneratedReadme --no-daemon
