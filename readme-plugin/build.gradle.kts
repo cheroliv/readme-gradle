@@ -28,6 +28,9 @@ dependencies {
     implementation(libs.bundles.readme)
     implementation(libs.bundles.jgit)
 
+    compileOnly(libs.bundles.readme.ai)
+    compileOnly(libs.bundles.readme.utils)
+
     //TODO: readme to html and serve
     implementation(libs.node.gradle)
 
@@ -82,7 +85,7 @@ dependencies {
     add(functionalTest.implementationConfigurationName, kotlin("stdlib-jdk8"))
     add(functionalTest.implementationConfigurationName, kotlin("test-junit5"))
     add(functionalTest.implementationConfigurationName, "org.slf4j:slf4j-api:2.0.17")
-    add(functionalTest.runtimeOnlyConfigurationName,   "org.junit.platform:junit-platform-launcher")
+    add(functionalTest.runtimeOnlyConfigurationName, "org.junit.platform:junit-platform-launcher")
     add(functionalTest.implementationConfigurationName, libs.assertj.core)
     add(functionalTest.implementationConfigurationName, libs.mockito.kotlin)
     add(functionalTest.implementationConfigurationName, libs.mockito.junit.jupiter)
@@ -125,7 +128,7 @@ val functionalTestTask = tasks.register<Test>("functionalTest") {
 sourceSets {
     test {
         resources { srcDir("src/test/features") }
-        java      { srcDir("src/test/scenarios") }
+        java { srcDir("src/test/scenarios") }
     }
 }
 
@@ -174,22 +177,24 @@ gradlePlugin {
 
     plugins {
         create("readme") {
-            id                  = libs.plugins.readme.get().pluginId
+            id = libs.plugins.readme.get().pluginId
             implementationClass = "readme.ReadmePlugin"
-            displayName         = "README helper Plugin"
-            description         = """
+            displayName = "README helper Plugin"
+            description = """
                 Generates GitHub-compatible README.adoc files from README_truth.adoc
                 source files. Replaces diagram blocks with PNG images committed back
                 to the repository via GitHub Actions and JGit.
             """.trimIndent()
-            tags.set(listOf(
-                "asciidoc",
-                "plantuml",
-                "readme",
-                "documentation",
-                "github",
-                "diagram"
-            ))
+            tags.set(
+                listOf(
+                    "asciidoc",
+                    "plantuml",
+                    "readme",
+                    "documentation",
+                    "github",
+                    "diagram"
+                )
+            )
         }
     }
 }
