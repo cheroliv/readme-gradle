@@ -53,11 +53,12 @@ data class OutputConfig(
 )
 
 data class GitConfig(
-    val userName:        String       = "github-actions[bot]",
-    val userEmail:       String       = "github-actions[bot]@users.noreply.github.com",
-    val commitMessage:   String       = "chore: generate readme [skip ci]",
-    val token:           String       = "",
-    val watchedBranches: List<String> = listOf("main", "master")
+    val userName: String = "github-actions[bot]",
+    val userEmail: String = "github-actions[bot]@users.noreply.github.com",
+    val token: String = "",
+    val repoUrl: String = "",
+    val watchedBranches: List<String> = listOf("main"),
+    val commitMessage: String = "chore: generate readme [skip ci]"
 ) {
     fun resolvedToken(): String =
         token.takeIf { it.isNotBlank() && it != "<YOUR_GITHUB_PAT>" }
