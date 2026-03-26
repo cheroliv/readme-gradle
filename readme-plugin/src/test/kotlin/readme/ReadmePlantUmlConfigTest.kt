@@ -31,7 +31,6 @@ class ReadmePlantUmlConfigTest {
             git:
               userName: "bot"
               userEmail: "bot@example.com"
-              repoUrl: "https://github.com/bot/app.git"
               commitMessage: "chore: regen [skip ci]"
               token: "ghp_test_token"
               watchedBranches:
