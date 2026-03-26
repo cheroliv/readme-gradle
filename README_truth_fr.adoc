@@ -16,7 +16,7 @@
 
 Plugin Gradle publié sous licence Apache 2.0 sur le link:https://plugins.gradle.org[Gradle Plugin Portal].
 
-Il génère automatiquement des fichiers `README.adoc` compatibles GitHub depuis des fichiers source `README_plantuml.adoc` contenant des blocs PlantUML natifs.
+Il génère automatiquement des fichiers `README.adoc` compatibles GitHub depuis des fichiers source `README_truth.adoc` contenant des blocs PlantUML natifs.
 
 == 1. Problème résolu
 
@@ -31,7 +31,7 @@ Ce plugin automatise la transformation via GitHub Actions :
 skinparam componentStyle rectangle
 
 package "Ce que tu écris" {
-  [README_plantuml.adoc\n(blocs plantuml natifs)] as src #LightGreen
+  [README_truth.adoc\n(blocs plantuml natifs)] as src #LightGreen
 }
 
 package "Ce que GitHub affiche" {
@@ -49,7 +49,7 @@ out --> web : GitHub rend\nnativement
 
 == 2. Philosophie : source de vérité unique
 
-`README_plantuml.adoc` est le **seul fichier que tu édites**.
+`README_truth.adoc` est le **seul fichier que tu édites**.
 `README.adoc` est un artefact généré — jamais édité à la main.
 
 [plantuml, source-of-truth, png]
@@ -58,7 +58,7 @@ out --> web : GitHub rend\nnativement
 skinparam defaultTextAlignment center
 
 rectangle "Tu édites" #LightGreen {
-  file "README_plantuml.adoc" as src
+  file "README_truth.adoc" as src
   file "README_plantuml_fr.adoc" as srcFr
 }
 
@@ -84,7 +84,7 @@ srcFr --> imgFr
 | Langue détectée
 | Fichier généré (CI)
 
-| `README_plantuml.adoc`
+| `README_truth.adoc`
 | `en` (défaut configurable)
 | `README.adoc`
 
@@ -131,7 +131,7 @@ GH --> Developer : README visible ✓
 @startuml
 start
 
-:Lecture de readme-plantuml.yml\n(injecté depuis le secret CI);
+:Lecture de readme-truth.yml\n(injecté depuis le secret CI);
 
 :Scan des README_plantuml*.adoc\ndans sourceDir;
 
@@ -344,8 +344,8 @@ GitPort <.. jgit
 mon-projet/                               <1>
 ├── settings.gradle.kts
 ├── build.gradle.kts
-├── readme-plantuml.yml                   <2>
-├── README_plantuml.adoc                  <3>
+├── readme-truth.yml                   <2>
+├── README_truth.adoc                  <3>
 ├── README_plantuml_fr.adoc               <3>
 │
 └── plugin/                               <4>
@@ -388,7 +388,7 @@ mon-projet/
 ├── README_fr.adoc                                     <1>
 └── .github/
     └── workflows/
-        ├── readme_plantuml.yml                        <2>
+        ├── readme_truth.yml                        <2>
         └── readmes/
             └── images/
                 ├── en/
@@ -403,11 +403,11 @@ mon-projet/
 
 == 6. Configuration
 
-La configuration est externalisée dans `readme-plantuml.yml`.
+La configuration est externalisée dans `readme-truth.yml`.
 Ce fichier ne contient **jamais** le token en clair dans le repo.
 Son contenu complet (token inclus) est stocké dans le secret GitHub `README_GRADLE_PLUGIN`.
 
-=== Template `readme-plantuml.yml`
+=== Template `readme-truth.yml`
 
 [source,yaml]
 ----
@@ -521,7 +521,7 @@ jobs:
 
 | `tools.jackson.dataformat:jackson-dataformat-yaml`
 | `3.0.4`
-| Parsing du fichier `readme-plantuml.yml`
+| Parsing du fichier `readme-truth.yml`
 
 | `tools.jackson.module:jackson-module-kotlin`
 | `3.0.4`
