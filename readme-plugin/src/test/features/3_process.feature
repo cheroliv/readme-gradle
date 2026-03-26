@@ -269,3 +269,110 @@ Feature: Process README truth sources
     And the build log should contain the following entries:
       | level | keyword      | value |
       | WARN  | README_truth | found |
+
+  # ── Robustness ────────────────────────────────────────────────────────────
+
+  Scenario: processReadme warns when inter-language link targets a non-existent truth file
+    Given the file "README_truth.adoc" exists with the following content:
+      """
+      = English
+      link:README_truth_de.adoc[DE]
+      """
+    When I am executing the task "processReadme"
+    Then the build should succeed
+    And the build log should contain the following entries:
+      | level | keyword         | value |
+      | WARN  | README_truth_de | exist |
+    And the file "README.adoc" should contain "link:README_de.adoc[DE]"
+
+  Scenario: processReadme warns when a diagram name is duplicated in the same file
+    Given the file "README_truth.adoc" exists with the following content:
+      """
+      = Test
+
+      [plantuml, architecture, png]
+      ----
+      Alice -> Bob : hello
+      ----
+
+      [plantuml, architecture, png]
+      ----
+      Bob -> Alice : world
+      ----
+      """
+    When I am executing the task "processReadme"
+    Then the build should succeed
+    And the build log should contain the following entries:
+      | level | keyword      | value     |
+      | WARN  | architecture | duplicate |
+
+  Scenario: processReadme warns when PlantUML syntax is invalid
+    Given the file "README_truth.adoc" exists with the following content:
+      """
+      = Test
+      [plantuml, broken, png]
+      ----
+      @@@invalid syntax@@@
+      ----
+      """
+    When I am executing the task "processReadme"
+    Then the build should succeed
+    And the build log should contain the following entries:
+      | level | keyword | value   |
+      | WARN  | broken  | invalid |
+
+  Scenario: processReadme logs each processed source file
+    Given the file "README_truth.adoc" exists with the following content:
+      """
+      = English
+      """
+    And the file "README_truth_fr.adoc" exists with the following content:
+      """
+      = Français
+      """
+    When I am executing the task "processReadme"
+    Then the build should succeed
+    And the build log should contain the following entries:
+      | level     | keyword            | value |
+      | ╔═    | README_truth.adoc | lang  |
+      | ╔═    | README_truth_fr   | lang  |
+
+  Scenario: processReadme logs diagram replacement count per file
+    Given the file "README_truth.adoc" exists with the following content:
+      """
+      = Test
+
+      [plantuml, diagram1, png]
+      ----
+      Alice -> Bob : hello
+      ----
+
+      [plantuml, diagram2, png]
+      ----
+      Bob -> Alice : world
+      ----
+      """
+    When I am executing the task "processReadme"
+    Then the build should succeed
+    And the build log should contain the following entries:
+      | level     | keyword | value   |
+      | OUT   | 2       | diagram |
+
+  Scenario: processReadme generates README.adoc even when source has no diagrams
+    Given the file "README_truth.adoc" exists with the following content:
+      """
+      = Hello World
+
+      Just some text, no diagrams.
+
+      == Section
+
+      More text here.
+      """
+    When I am executing the task "processReadme"
+    Then the build should succeed
+    And the file "README.adoc" should exist
+    And the file "README.adoc" should contain "Just some text, no diagrams."
+    And the build log should contain the following entries:
+      | level     | keyword | value   |
+      | OUT   | 0       | diagram |
