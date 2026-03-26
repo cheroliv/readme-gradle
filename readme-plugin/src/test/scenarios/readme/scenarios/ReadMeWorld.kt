@@ -57,10 +57,22 @@ class ReadMeWorld {
     }
 
     suspend fun executeGradle(vararg tasks: String): BuildResult =
-        executeGradleAsync(*tasks)
-            .await()
-            .also { buildResult = it }
-
+        try {
+            GradleRunner.create()
+                .withProjectDir(projectDir!!)
+                .withArguments(buildArguments(tasks))
+                .withPluginClasspath()
+                .build()
+                .also { buildResult = it }
+        } catch (e: org.gradle.testkit.runner.UnexpectedBuildFailure) {
+            // Capture the result even on build failure — lets scenarios assert on it
+            e.buildResult
+                .also { buildResult = it }
+        } catch (e: Exception) {
+            log.error("Gradle build failed", e)
+            exception = e
+            throw e
+        }
     /**
      * Executes a Gradle task expecting a build failure.
      * Uses buildAndFail() — does not throw on non-zero exit code.
