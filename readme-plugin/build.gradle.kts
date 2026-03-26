@@ -172,8 +172,8 @@ tasks.check {
 
 // ── Gradle plugin metadata ────────────────────────────────────────────────────
 gradlePlugin {
-    website.set("https://cheroliv.com/")
-    vcsUrl.set("https://github.com/cheroliv/readme-plugin.git")
+    website.set("https://github.com/cheroliv/readme-gradle/")
+    vcsUrl.set("https://github.com/cheroliv/readme-gradle.git")
 
     plugins {
         create("readme") {
