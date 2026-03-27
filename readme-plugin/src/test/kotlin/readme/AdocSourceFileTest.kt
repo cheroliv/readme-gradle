@@ -2,6 +2,7 @@ package readme
 
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.io.TempDir
 import java.io.File
 
 class AdocSourceFileTest {
@@ -54,5 +55,34 @@ class AdocSourceFileTest {
     @Test
     fun `effectiveLang retourne le defaut si pas de langue dans le nom`() {
         assertEquals("en", AdocSourceFile(File("README_truth.adoc")).effectiveLang("en"))
+    }
+
+    // ── scanDir ordering ──────────────────────────────────────────────────────
+
+    @Test
+    fun `scanDir retourne les fichiers en ordre alphabetique`(@TempDir tempDir: File) {
+        // Create files in reverse alphabetical order to expose non-deterministic listFiles()
+        File(tempDir, "README_truth_fr.adoc").writeText("= FR")
+        File(tempDir, "README_truth_de.adoc").writeText("= DE")
+        File(tempDir, "README_truth.adoc").writeText("= EN")
+
+        val names = AdocSourceFile.scanDir(tempDir).map { it.file.name }
+
+        assertEquals(
+            listOf("README_truth.adoc", "README_truth_de.adoc", "README_truth_fr.adoc"),
+            names
+        )
+    }
+
+    @Test
+    fun `scanDir place README_truth adoc sans suffixe de langue en premier`(@TempDir tempDir: File) {
+        // fr and de created before the no-lang variant — filesystem order would put them first
+        File(tempDir, "README_truth_fr.adoc").writeText("= FR")
+        File(tempDir, "README_truth_de.adoc").writeText("= DE")
+        File(tempDir, "README_truth.adoc").writeText("= EN")
+
+        val first = AdocSourceFile.scanDir(tempDir).first().file.name
+
+        assertEquals("README_truth.adoc", first)
     }
 }
