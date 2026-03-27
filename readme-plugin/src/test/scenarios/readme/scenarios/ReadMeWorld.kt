@@ -63,6 +63,14 @@ class ReadMeWorld {
      */
     var readonlyFilesMock: String? = null
 
+    /**
+     * Activates local-only commit mock in CommitGeneratedReadmeTask.
+     * Forwarded as -Preadme.commit.mock=true to GradleRunner.
+     * When true: git add + commit runs locally, push is skipped entirely.
+     * No token resolution occurs — safe for tests without a real GitHub PAT.
+     */
+    var commitMock: Boolean = false
+
     private val asyncJobs = mutableListOf<Deferred<BuildResult>>()
 
     // ── Gradle runner ─────────────────────────────────────────────────────────
@@ -78,7 +86,8 @@ class ReadMeWorld {
                     ?: emptyList()) +
                 (readonlyFilesMock
                     ?.let { listOf("-Preadme.process.readonly.files=$it") }
-                    ?: emptyList())
+                    ?: emptyList()) +
+                (if (commitMock) listOf("-Preadme.commit.mock=true") else emptyList())
 
     fun executeGradleAsync(vararg tasks: String): Deferred<BuildResult> {
         require(projectDir != null) { "Project directory must be initialized" }
@@ -193,6 +202,7 @@ class ReadMeWorld {
         gitValidatorMockResult = null
         unreadableFilesMock    = null
         readonlyFilesMock      = null
+        commitMock             = false
         asyncJobs.clear()
     }
 }
