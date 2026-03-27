@@ -25,9 +25,12 @@ abstract class ProcessReadmeTask : DefaultTask() {
     abstract val defaultLang: Property<String>
 
     // Matches any AsciiDoc block delimiter of 4+ identical chars: ----, ````, ......
+    // Accepts both unquoted and quoted diagram names — quoted names may contain spaces:
+    //   [plantuml, architecture, png]    → name = "architecture"
+    //   [plantuml, "my diagram", png]    → name = "my diagram"
     // Capture group 2 ensures opening and closing delimiter match exactly.
     private val plantUmlBlockRegex = Regex(
-        """\[plantuml,\s*([^,\]\s]+)[^\]]*]\s*\n(-{4,}|`{4,}|\.{4,})\n(.*?)\n\2""",
+        """\[plantuml,\s*\"?([^,\]"]+)\"?[^\]]*]\s*\n(-{4,}|`{4,}|\.{4,})\n(.*?)\n\2""",
         RegexOption.DOT_MATCHES_ALL
     )
 
@@ -53,6 +56,17 @@ abstract class ProcessReadmeTask : DefaultTask() {
     }
 
     private fun processSource(src: AdocSourceFile) {
+        // Guard: skip unreadable files instead of crashing — other sources continue.
+        // Also checks the internal test mock property -Preadme.process.unreadable.files
+        // which simulates unreadable files without relying on filesystem permissions
+        // (unreliable when the Gradle daemon runs as root on Linux).
+        if (isUnreadableMock(src.file.name) || !src.file.canRead()) {
+            logger.warn(
+                "[WARN]  ${src.file.name} is not readable — skipping this source file"
+            )
+            return
+        }
+
         val lang    = src.effectiveLang(defaultLang.get())
         val content = src.file.readText()
 
@@ -128,6 +142,18 @@ abstract class ProcessReadmeTask : DefaultTask() {
 
         // ── Step 3: write generated file ──────────────────────────────────────
         val generated = src.generatedFile()
+
+        // Guard: skip read-only generated files instead of crashing.
+        // Also checks the internal test mock property -Preadme.process.readonly.files
+        // which simulates read-only output files without relying on filesystem permissions
+        // (unreliable when the Gradle daemon runs as root on Linux).
+        if (isReadOnlyMock(generated.name) || (generated.exists() && !generated.canWrite())) {
+            logger.warn(
+                "[WARN]  ${generated.name} is read-only — skipping write for ${src.file.name}"
+            )
+            return
+        }
+
         generated.writeText(rewritten)
 
         logger.lifecycle("║  OUT  : ${generated.name}  ($diagramCount diagram(s) replaced)")
@@ -135,27 +161,69 @@ abstract class ProcessReadmeTask : DefaultTask() {
     }
 
     /**
+     * Returns true if [fileName] is listed in the internal test mock property
+     * -Preadme.process.unreadable.files (comma-separated list of file names).
+     * Always returns false in production — property is absent.
+     */
+    private fun isUnreadableMock(fileName: String): Boolean =
+        project.findProperty("readme.process.unreadable.files")
+            ?.toString()
+            ?.split(",")
+            ?.any { it.trim() == fileName }
+            ?: false
+
+    /**
+     * Returns true if [fileName] is listed in the internal test mock property
+     * -Preadme.process.readonly.files (comma-separated list of file names).
+     * Always returns false in production — property is absent.
+     */
+    private fun isReadOnlyMock(fileName: String): Boolean =
+        project.findProperty("readme.process.readonly.files")
+            ?.toString()
+            ?.split(",")
+            ?.any { it.trim() == fileName }
+            ?: false
+
+    /**
      * Generates a PNG from [body] into [output].
      * Returns true on success, false if PlantUML reported an error.
-     * Logs a warning with the diagram name and error description on failure.
+     *
+     * PlantUML never throws for syntax errors — it generates an error image instead.
+     * We detect failure via two complementary checks:
+     *  1. The description returned by outputImage() contains "error" (ignoring case)
+     *  2. Fallback: the generated file is suspiciously small (< 100 bytes) —
+     *     a valid diagram PNG is always larger; a near-empty or corrupt output signals failure.
+     *
+     * On failure: logs a WARN and returns false so the caller preserves
+     * the original PlantUML block in the generated README instead of
+     * replacing it with a broken image:: reference.
      */
     private fun generatePng(body: String, output: File, name: String): Boolean {
         val src = if (body.trim().startsWith("@startuml")) body
         else "@startuml\n$body\n@enduml"
 
         val reader = SourceStringReader(src)
-        return FileOutputStream(output).use { fos ->
-            val description = reader.outputImage(fos)?.description
-            if (description != null &&
+        val description = FileOutputStream(output).use { fos ->
+            reader.outputImage(fos)?.description
+        }
+
+        // Check 1: description explicitly reports an error
+        val descriptionIndicatesError = description != null &&
                 description.contains("error", ignoreCase = true)
-            ) {
-                logger.warn(
-                    "[WARN]  $name — invalid PlantUML syntax: $description"
-                )
-                false
-            } else {
-                true
-            }
+
+        // Check 2: output file is too small to be a valid PNG
+        val outputTooSmall = output.length() < 100L
+
+        return if (descriptionIndicatesError || outputTooSmall) {
+            logger.warn(
+                "[WARN]  $name — invalid PlantUML syntax" +
+                        (if (description != null) ": $description" else "") +
+                        " — block preserved as-is in generated README"
+            )
+            output.delete() // remove the corrupt/error PNG
+            false
+        } else {
+            true
         }
     }
 }
