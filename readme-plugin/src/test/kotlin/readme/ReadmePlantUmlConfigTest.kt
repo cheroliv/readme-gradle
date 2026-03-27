@@ -21,7 +21,7 @@ class ReadmePlantUmlConfigTest {
 
     @Test
     fun `load mappe correctement un fichier YAML complet`(@TempDir tempDir: File) {
-        File(tempDir, "readme-truth.yml").writeText(
+        File(tempDir, "readme.yml").writeText(
             """
             source:
               dir: "docs"
@@ -51,7 +51,7 @@ class ReadmePlantUmlConfigTest {
 
     @Test
     fun `load retourne les valeurs par defaut si fichier vide`(@TempDir tempDir: File) {
-        File(tempDir, "readme-truth.yml").writeText("")
+        File(tempDir, "readme.yml").writeText("")
         val config = ReadmePlantUmlConfig.load(tempDir)
 
         assertEquals(".", config.source.dir)
@@ -60,7 +60,7 @@ class ReadmePlantUmlConfigTest {
 
     @Test
     fun `load retourne les valeurs par defaut si YAML invalide`(@TempDir tempDir: File) {
-        File(tempDir, "readme-truth.yml").writeText("# existing config")
+        File(tempDir, "readme.yml").writeText("# existing config")
         val config = ReadmePlantUmlConfig.load(tempDir)
 
         assertEquals(".", config.source.dir)
@@ -77,7 +77,7 @@ class ReadmePlantUmlConfigTest {
 
     @Test
     fun `resolvedToken leve une erreur si token est le placeholder`(@TempDir tempDir: File) {
-        File(tempDir, "readme-truth.yml").writeText(
+        File(tempDir, "readme.yml").writeText(
             """
             git:
               token: "<YOUR_GITHUB_PAT>"
