@@ -28,11 +28,40 @@ class ReadMeWorld {
     var gitRoot: File? = null
 
     /**
+     * Directories made non-writable by givenDirectoryExistsAndIsNotWritable().
+     * Must be restored to writable before deleteRecursively() in cleanup(),
+     * otherwise the cleanup itself will fail silently on some filesystems.
+     */
+    val nonWritableDirs: MutableList<File> = mutableListOf()
+
+    /**
+     * Files made non-readable by givenFileIsNotReadable().
+     * Must be restored to readable before deleteRecursively() in cleanup().
+     */
+    val nonReadableFiles: MutableList<File> = mutableListOf()
+
+    /**
      * Internal test property value forwarded to GradleRunner via -P flag.
      * Maps directly to -Preadme.git.validator.mock=<value> in Gradle arguments.
      * Null means no mock — JGitRemoteValidator is used.
      */
     var gitValidatorMockResult: String? = null
+
+    /**
+     * Comma-separated list of file names to simulate as unreadable.
+     * Forwarded as -Preadme.process.unreadable.files=<value> to GradleRunner.
+     * Null means no mock — real filesystem canRead() is used.
+     * Filesystem-based approaches are not reliable when the Gradle daemon runs as root.
+     */
+    var unreadableFilesMock: String? = null
+
+    /**
+     * Comma-separated list of generated file names to simulate as read-only.
+     * Forwarded as -Preadme.process.readonly.files=<value> to GradleRunner.
+     * Null means no mock — real filesystem canWrite() is used.
+     * Filesystem-based approaches are not reliable when the Gradle daemon runs as root.
+     */
+    var readonlyFilesMock: String? = null
 
     private val asyncJobs = mutableListOf<Deferred<BuildResult>>()
 
@@ -43,6 +72,12 @@ class ReadMeWorld {
                 "--stacktrace" +
                 (gitValidatorMockResult
                     ?.let { listOf("-Preadme.git.validator.mock=$it") }
+                    ?: emptyList()) +
+                (unreadableFilesMock
+                    ?.let { listOf("-Preadme.process.unreadable.files=$it") }
+                    ?: emptyList()) +
+                (readonlyFilesMock
+                    ?.let { listOf("-Preadme.process.readonly.files=$it") }
                     ?: emptyList())
 
     fun executeGradleAsync(vararg tasks: String): Deferred<BuildResult> {
@@ -139,6 +174,13 @@ class ReadMeWorld {
     @After
     fun cleanup() {
         scope.cancel()
+        // Restore writable permission before deleteRecursively() —
+        // non-writable dirs would cause silent cleanup failures.
+        nonWritableDirs.forEach { it.setWritable(true) }
+        nonWritableDirs.clear()
+        // nonReadableFiles is kept for potential future filesystem-based tests
+        nonReadableFiles.forEach { it.setReadable(true) }
+        nonReadableFiles.clear()
         // Remove the fake .git created by givenProjectNestedUnderGitRoot().
         // It lives one level above projectDir in the temp filesystem —
         // must be cleaned up explicitly to avoid polluting subsequent scenarios.
@@ -149,6 +191,8 @@ class ReadMeWorld {
         exception              = null
         gitRoot                = null
         gitValidatorMockResult = null
+        unreadableFilesMock    = null
+        readonlyFilesMock      = null
         asyncJobs.clear()
     }
 }
