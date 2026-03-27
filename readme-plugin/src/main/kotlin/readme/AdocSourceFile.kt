@@ -20,10 +20,20 @@ data class AdocSourceFile(val file: File) {
             file.extension == "adoc"
                     && SOURCE_PATTERN.containsMatchIn(file.nameWithoutExtension)
 
+        /**
+         * Scans [dir] for README_truth*.adoc source files and returns them
+         * sorted alphabetically by file name for deterministic processing order.
+         *
+         * Sorting guarantees:
+         *  - README_truth.adoc (no lang suffix) always comes before README_truth_fr.adoc
+         *  - language variants are processed in alphabetical order: de, en, fr, ...
+         *  - output is stable across filesystems (ext4, tmpfs, HFS+, NTFS)
+         */
         fun scanDir(dir: File): List<AdocSourceFile> =
             dir.listFiles()
-                ?.filter { isSourceOfTruth(it) }
-                ?.map    { AdocSourceFile(it) }
+                ?.filter  { isSourceOfTruth(it) }
+                ?.sortedBy { it.name }
+                ?.map     { AdocSourceFile(it) }
                 ?: emptyList()
     }
 
