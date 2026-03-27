@@ -31,6 +31,21 @@ class ProcessSteps(private val world: ReadMeWorld) {
      * imgDir will resolve to gitRoot/.github/workflows/readmes/images/
      * The image:: path in README.adoc will be relative: ../.github/...
      */
+    @Given("the file {string} is not readable")
+    fun givenFileIsNotReadable(relativePath: String) {
+        // Uses the mock property mechanism — same pattern as gitValidatorMockResult.
+        // filesystem-based approaches (setReadable, symlinks, locked dirs) are not
+        // reliable when the Gradle daemon runs as root on Linux.
+        world.unreadableFilesMock = java.io.File(relativePath).name
+    }
+
+    @Given("the generated file {string} is read-only")
+    fun givenGeneratedFileIsReadOnly(relativePath: String) {
+        // Uses the mock property mechanism — same pattern as unreadableFilesMock.
+        // filesystem-based approaches are not reliable when the Gradle daemon runs as root on Linux.
+        world.readonlyFilesMock = java.io.File(relativePath).name
+    }
+
     @Given("the project is nested under a git root")
     fun givenProjectNestedUnderGitRoot() {
         val currentProjectDir = world.projectDir
@@ -85,5 +100,32 @@ class ProcessSteps(private val world: ReadMeWorld) {
         assertThat(world.readProjectFile(relativePath))
             .describedAs("Expected $relativePath to contain docstring content")
             .contains(expected.trimIndent())
+    }
+
+    /**
+     * Asserts that [first] appears before [second] in the build log output.
+     * Both strings must be present — fails with a clear message if either is absent
+     * or if the order is wrong.
+     */
+    @Then("the build log should contain {string} before {string}")
+    fun thenLogContainsBefore(first: String, second: String) {
+        val output = world.buildResult?.output
+            ?: error("No build result available — did the task run?")
+
+        val idxFirst  = output.indexOf(first)
+        val idxSecond = output.indexOf(second)
+
+        assertThat(idxFirst)
+            .describedAs("Expected '$first' to be present in build log")
+            .isGreaterThanOrEqualTo(0)
+        assertThat(idxSecond)
+            .describedAs("Expected '$second' to be present in build log")
+            .isGreaterThanOrEqualTo(0)
+        assertThat(idxFirst)
+            .describedAs(
+                "Expected '$first' (idx=$idxFirst) to appear " +
+                "before '$second' (idx=$idxSecond) in build log"
+            )
+            .isLessThan(idxSecond)
     }
 }
