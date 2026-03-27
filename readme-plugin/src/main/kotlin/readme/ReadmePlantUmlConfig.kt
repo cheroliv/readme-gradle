@@ -6,13 +6,13 @@ import com.fasterxml.jackson.module.kotlin.registerKotlinModule
 import java.io.File
 
 /**
- * Jackson 2.x model — exact mirror of readme-truth.yml
+ * Jackson 2.x model — exact mirror of readme.yml
  *
- * readme-truth.yml is NEVER committed with a real token.
+ * readme.yml is NEVER committed with a real token.
  * Its content (token included) is stored in the GitHub secret
  * README_GRADLE_PLUGIN and written to disk by CI:
  *
- *   echo "${{ secrets.README_GRADLE_PLUGIN }}" > readme-truth.yml
+ *   echo "${{ secrets.README_GRADLE_PLUGIN }}" > readme.yml
  *   ./gradlew -q -s commitGeneratedReadme
  *
  * TODO: migrate to tools.jackson 3.x when stable release is available
@@ -27,7 +27,7 @@ data class ReadmePlantUmlConfig(
         private val MAPPER: ObjectMapper = ObjectMapper(YAMLFactory())
             .registerKotlinModule()
 
-        const val CONFIG_FILE_NAME = "readme-truth.yml"
+        const val CONFIG_FILE_NAME = "readme.yml"
 
         fun load(projectDir: File): ReadmePlantUmlConfig {
             val configFile = File(projectDir, CONFIG_FILE_NAME)
@@ -72,7 +72,7 @@ data class GitConfig(
     fun resolvedToken(): String =
         token.takeIf { it.isNotBlank() && it != "<YOUR_GITHUB_PAT>" }
             ?: error(
-                "GitHub token is empty or still a placeholder in readme-truth.yml.\n" +
+                "GitHub token is empty or still a placeholder in readme.yml.\n" +
                         "→ Check the README_GRADLE_PLUGIN secret in :\n" +
                         "   GitHub → Settings → Secrets and variables → Actions"
             )
